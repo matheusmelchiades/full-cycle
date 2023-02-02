@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"io"
 
 	"github.com/devfullcycle/14-gRPC/internal/database"
 	"github.com/devfullcycle/14-gRPC/internal/pb"
@@ -26,29 +27,27 @@ func (c *CategoryService) CreateCategory(ctx context.Context, in *pb.CreateCateg
 	}
 
 	categoryResponse := &pb.Category{
-		Id: category.ID,
-		Name: category.Name,
+		Id:          category.ID,
+		Name:        category.Name,
 		Description: category.Description,
 	}
 
 	return categoryResponse, nil
 }
 
-
-func (c *CategoryService) ListCategories(ctx context.Context, blank *pb.Blank) (*pb.CategoryList, error)  {
+func (c *CategoryService) ListCategories(ctx context.Context, blank *pb.Blank) (*pb.CategoryList, error) {
 	categories, err := c.CategoryDB.FindAll()
 
 	if err != nil {
 		return nil, err
 	}
 
-
 	var categoriesResponse []*pb.Category
 
 	for _, category := range categories {
-		categoryResponse := &pb.Category {
-			Id: category.ID,
-			Name: category.Name,
+		categoryResponse := &pb.Category{
+			Id:          category.ID,
+			Name:        category.Name,
 			Description: category.Description,
 		}
 
@@ -66,10 +65,38 @@ func (c *CategoryService) GetCategory(ctx context.Context, in *pb.CategoryGetReq
 	}
 
 	categoryResponse := &pb.Category{
-		Id: category.ID,
-		Name: category.Name,
+		Id:          category.ID,
+		Name:        category.Name,
 		Description: category.Description,
 	}
 
 	return categoryResponse, nil
+}
+
+func (c *CategoryService) CreateCategoryStream(stream pb.CategoryService_CreateCategoryStreamServer) error {
+	categories := &pb.CategoryList{}
+
+	for {
+		category, err := stream.Recv()
+
+		if err != io.EOF {
+			return stream.SendAndClose(categories)
+		}
+
+		if err != nil {
+			return err
+		}
+
+		categoryResult, err := c.CategoryDB.Create(category.Name, category.Description)
+
+		if err != nil {
+			return err
+		}
+
+		categories.Categories = append(categories.Categories, &pb.Category{
+			Id:          categoryResult.ID,
+			Name:        categoryResult.Name,
+			Description: categoryResult.Description,
+		})
+	}
 }
